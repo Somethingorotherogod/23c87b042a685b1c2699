@@ -1039,6 +1039,16 @@ function showAgents() {
 // allows each viewer 60 reads an hour, so it's read every 75 s; while that limit is used up, the gist's raw
 // address (no limit, up to ~5 min behind) is used instead. The gist owner is this github.io site's owner.
 const GIST_OWNER = (location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i) || [, 'somethingorotherogod'])[1].toLowerCase();
+// The cloud team's status (cafe-cloud.json, copied in by a GitHub Action) joins the Mac's: newest news wins per agent.
+function mergeCloud(data, cloud) {
+  const list = (data && Array.isArray(data.agents) ? data.agents : []).filter((f) => f && typeof f === 'object');
+  for (const c of (cloud && Array.isArray(cloud.agents) ? cloud.agents : [])) {
+    if (!c || typeof c !== 'object') continue;
+    const i = list.findIndex((f) => f.id === c.id);
+    if (i < 0) list.push(c); else if ((Number(c.seen) || 0) > (Number(list[i].seen) || 0)) list[i] = c;
+  }
+  return { ...(data || {}), agents: list };
+}
 function useState(data) {
   files = (data && Array.isArray(data.agents) ? data.agents : []).filter((f) => f && typeof f === 'object');
   team = (data && Array.isArray(data.team) ? data.team : []).filter((t) => t && typeof t === 'object').slice(0, 16);
@@ -1055,14 +1065,19 @@ async function readApi() {
     return undefined;
   }
   if (!res.ok) throw new Error('bad status');
-  const f = ((await res.json()).files || {})['cafe-state.json'];
-  return f && typeof f.content === 'string' ? JSON.parse(f.content) : null;
+  const gf = (await res.json()).files || {};
+  const read = (n) => { const f = gf[n]; try { return f && typeof f.content === 'string' ? JSON.parse(f.content) : null; } catch { return null; } };
+  return mergeCloud(read('cafe-state.json'), read('cafe-cloud.json'));
 }
 async function readRaw() {
-  const res = await fetch(`https://gist.githubusercontent.com/${GIST_OWNER}/${GIST_ID}/raw/cafe-state.json?t=${Date.now()}`, { cache: 'no-store' });
-  if (res.status === 404) return null;   // no sessions yet
-  if (!res.ok) throw new Error('bad status');
-  return res.json();
+  const get = async (name) => {
+    const res = await fetch(`https://gist.githubusercontent.com/${GIST_OWNER}/${GIST_ID}/raw/${name}?t=${Date.now()}`, { cache: 'no-store' });
+    if (res.status === 404) return null;   // not written yet
+    if (!res.ok) throw new Error('bad status');
+    return res.json();
+  };
+  const [state, cloud] = await Promise.all([get('cafe-state.json'), get('cafe-cloud.json').catch(() => null)]);
+  return mergeCloud(state, cloud);
 }
 async function pollGist() {
   try {

@@ -393,17 +393,25 @@ const spot = (x, z, heading, stand = false) => ({ pos: new THREE.Vector3(x, 0, z
   // a rug under the lounge
   mesh(new THREE.PlaneGeometry(4.4, 3.4).rotateX(-Math.PI / 2), mat('#9C7F66'), cafe, 7.6, 0.012, -5.9, 1, 1, 1, false);
 
-  for (const x of [6.2, 7.2, 8.2]) COMMON.push(spot(x, -7.1, 0));
+  // seats for everyone on a break (all sitting): sofa, armchairs and poufs round the coffee table, the bench
+  for (const x of [5.85, 6.75, 7.65, 8.55]) COMMON.push(spot(x, -7.1, 0));
   for (const z of [-6.0, -5.0]) COMMON.push(spot(9.4, z, -Math.PI / 2));
-  for (const z of [-1.9, -0.6, 0.7, 2.0]) COMMON.push(spot(COMM_X + 1.05, z, -Math.PI / 2));  // bench
-  for (const z of [-1.9, -0.6, 0.7, 2.0]) COMMON.push(spot(COMM_X - 1.05, z, Math.PI / 2));  // communal stools
-  for (const [x, z] of [[6.1, -4.3], [7.3, -4.1], [8.4, -4.4]]) COMMON.push(spot(x, z, Math.atan2(7.5 - x, -5.7 - z), true));
+  for (const [x, z] of [[6.1, -4.3], [7.3, -4.05], [8.5, -4.35]]) {
+    const h = Math.atan2(7.5 - x, -5.7 - z); tubChair(x, z, h); COMMON.push(spot(x, z, h));
+  }
+  for (const [x, z] of [[5.35, -5.3], [5.35, -6.3], [6.35, -3.15], [8.35, -3.2]]) {
+    cyl(['#C9A66B', '#9DB08A', '#C77B5A', '#7F9AA6'][COMMON.length % 4], cafe, x, 0.21, z, 0.3, 0.42);
+    COMMON.push(spot(x, z, Math.atan2(7.5 - x, -5.7 - z)));
+  }
+  for (const z of [-2.3, -1.15, 0, 1.15, 2.3]) COMMON.push(spot(COMM_X + 1.05, z, -Math.PI / 2));  // bench
+  const SEATED = COMMON.length;
+  for (const z of [-1.9, -0.6, 0.7, 2.0]) COMMON.push(spot(COMM_X - 1.05, z, Math.PI / 2));  // communal stools (closed only)
   for (const z of [-2.4, -1.2, 0, 1.2, 2.4]) COMMON.push(spot(4.6, z, Math.PI / 2, true));
   for (const z of [-1.8, -0.6, 0.6, 1.8]) COMMON.push(spot(3.8, z, Math.PI / 2, true));
   for (const x of [5.8, 7.6]) COMMON.push(spot(x, 3.65, Math.PI, true));
 }
 const BARISTA_SPOTS = [spot(6.7, 3.75, Math.PI, true), spot(5.1, -3.5, 2.2, true)];
-const IDLE_SPOTS = [...COMMON.slice(0, 9), ...COMMON.slice(16)];
+const IDLE_SPOTS = [...COMMON.slice(0, 18), ...COMMON.slice(22)];   // 18 seats, then standing room
 function overflowSpot(i) {
   const a = i * 0.9, r = 2.6 + Math.floor(i / 7) * 0.7;
   const pos = new THREE.Vector3(4.2 + Math.cos(a) * 0.6, 0, 5.2 + Math.sin(a) * r * 0.4);

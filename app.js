@@ -991,6 +991,7 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePop(); 
 // "cafe.json" ({closed, since}) closes the café. Without an id in the link, the café runs a demo.
 const GIST_ID = (location.hash.slice(1).match(/^[0-9a-f]{20,40}$/) || [null])[0];
 const IDLE_AFTER = 5 * 60e3, GONE_AFTER = 30 * 60e3, POLL_MS = 75000;
+let team = [], teamSince = Date.now();
 let mode = 'connecting', everLive = false, etag = null, failures = 0, files = [], pauseUntil = 0;
 let cafeInfo = null;               // { closed, since } from cafe.json (kept across 304 answers)
 let demoClosed = false, demoClosedSince = 0;
@@ -1019,6 +1020,8 @@ function showAgents() {
     if (age > IDLE_AFTER) list.push({ id: f.id, name: f.name, state: 'idle', since: seen + IDLE_AFTER });
     else list.push({ id: f.id, name: f.name, state: f.state, since: Number(f.since) || seen });
   }
+  // The named team (e.g. Artist, Bug Finder) always has a place: anyone not busy is on a coffee break.
+  for (const t of team) if (!list.some((a) => a.id === t.id)) list.push({ id: t.id, name: t.name, state: 'idle', since: teamSince });
   everLive = true;
   if (mode !== 'live') { stopDemo(); mode = 'live'; setConn('live'); }
   applySnapshot(list);
@@ -1030,6 +1033,7 @@ function showAgents() {
 const GIST_OWNER = (location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i) || [, 'somethingorotherogod'])[1].toLowerCase();
 function useState(data) {
   files = (data && Array.isArray(data.agents) ? data.agents : []).filter((f) => f && typeof f === 'object');
+  team = (data && Array.isArray(data.team) ? data.team : []).filter((t) => t && typeof t === 'object').slice(0, 16);
   cafeInfo = data && typeof data.closed === 'boolean' && Number.isFinite(data.closedSince)
     ? { closed: data.closed, since: data.closedSince } : null;
   failures = 0;

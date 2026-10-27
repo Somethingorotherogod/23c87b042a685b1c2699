@@ -57,12 +57,14 @@ function fmtDur(ms) {
 /* ------------------------------------------------------------------ renderer */
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// Speed first: render at most 1.5x (1.25x on phones); drops further by itself if frames get slow (see frame()).
+let pixelCap = LOW ? 1.25 : 1.5;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelCap));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.92;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
 const scene = new THREE.Scene();
@@ -101,7 +103,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight('#FFF8EE', 2.1);
 sun.position.set(-6, 18, 9);
 sun.castShadow = true;
-sun.shadow.mapSize.set(LOW ? 2048 : 4096, LOW ? 2048 : 4096);
+sun.shadow.mapSize.set(LOW ? 1024 : 2048, LOW ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -13.5, right: 13.5, top: 13.5, bottom: -13.5, near: 2, far: 45 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.025;
@@ -111,7 +113,7 @@ scene.add(sun);
 const rimLight = new THREE.DirectionalLight('#7CC4FF', 0.95);
 rimLight.position.set(7, 9, -14);
 scene.add(rimLight);
-const LIGHT_BASE = { hemi: 0.9, sun: 2.1, rim: 0.95, point: 3.6, accent: 3.2 };
+const LIGHT_BASE = { hemi: 1.15, sun: 2.1, rim: 0.95, point: 3.6, accent: 3.2 };
 const pointLights = [];
 const accentLights = [];
 const glowSprites = [];
@@ -303,7 +305,7 @@ const whiteGloss = withEnv(new THREE.MeshStandardMaterial({ color: '#F5F6F8', ro
 const whiteGlossDS = withEnv(new THREE.MeshStandardMaterial({ color: '#F5F6F8', roughness: 0.28, metalness: 0, side: THREE.DoubleSide }), 0.55);
 const whiteMatte = mat('#EEF0F3', { roughness: 0.55 });
 function glassMat({ tint = '#F3F8FF', rough = 0.06, thick = 0.05, opacity = 0.24, side = THREE.FrontSide } = {}) {
-  if (!LOW) {
+  if (false) { // real transmission re-renders the whole scene every frame: far too slow, so always the light fake
     return withEnv(new THREE.MeshPhysicalMaterial({ color: tint, metalness: 0, roughness: rough, transmission: 1, thickness: thick, ior: 1.45,
       attenuationColor: '#D6ECFF', attenuationDistance: 1.2, specularIntensity: 1, side }), 1.0);
   }
@@ -551,7 +553,7 @@ function drawBoard(counts, closed) {
   mesh(new THREE.PlaneGeometry(1.3, 1.625), new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, toneMapped: false, depthWrite: false }), cafe, LX, LY, -8.07, 1, 1, 1, false);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#4FB4FF', transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
   halo.position.set(LX, LY + 0.2, -8.16); halo.scale.setScalar(2.4); halo.userData.base = 0.55; cafe.add(halo); glowSprites.push(halo);
-  if (!LOW) { const l = new THREE.PointLight('#3FA9FF', LIGHT_BASE.accent, 4.5, 1.6); l.position.set(LX, LY, -7.4); cafe.add(l); accentLights.push(l); }
+  if (false) { const l = new THREE.PointLight('#3FA9FF', LIGHT_BASE.accent, 4.5, 1.6); l.position.set(LX, LY, -7.4); cafe.add(l); accentLights.push(l); }
 }
 
 /* ------------------------------------------------------------------ L-shaped bar counter (white, frosted glass front, oak top) */
@@ -837,8 +839,9 @@ for (const x of [-7.6, -6.2, -4.8, -3.4]) pendant(x, BAR_Z, 2.5);
 for (const z of [-1.6, 0.2, 2.0]) pendant(COMM_X, z, 2.3);
 for (const [x, z] of [[-6.9, -1.4], [-3.3, -1.0], [-7.0, 2.8], [-3.2, 3.2], [0.6, 0.6], [7.5, -5.7]]) pendant(x, z, 2.4);
 for (const [x, z] of [[-6.9, -4.6], [-3.6, -4.6], [COMM_X, -1.0], [COMM_X, 1.6], [-5.0, 0.8], [-5.0, 3.0], [0.6, 0.6], [7.5, -5.7]]) {
-  if (LOW && pointLights.length % 2) { pointLights.push(null); continue; } // phones: half the bulbs cast light
-  const l = new THREE.PointLight('#E6F2FF', LIGHT_BASE.point * (LOW ? 1.5 : 1), 6.5, 1.5); l.position.set(x, 2.1, z); cafe.add(l); pointLights.push(l);
+  // only 3 bulbs actually cast light (each point light costs every pixel); the rest just glow
+  if (![0, 3, 6].includes(pointLights.length) || (LOW && pointLights.length)) { pointLights.push(null); continue; }
+  const l = new THREE.PointLight('#E6F2FF', LIGHT_BASE.point * (LOW ? 2.2 : 1.6), 8.5, 1.5); l.position.set(x, 2.1, z); cafe.add(l); pointLights.push(l);
 }
 for (let i = pointLights.length - 1; i >= 0; i--) if (!pointLights[i]) pointLights.splice(i, 1);
 instanced(new THREE.PlaneGeometry(1, 1), blobs, new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, color: '#1A2638', opacity: 0.55 }), { shadow: false, receive: false }).renderOrder = -1;
@@ -1921,7 +1924,24 @@ function frame() {
   updateHover();
 
   renderer.render(scene, camera);
+  adaptQuality();
   requestAnimationFrame(frame);
+}
+
+// If frames take longer than ~22 ms on average (under ~45 fps), render at a lower resolution, down to 1x.
+let qStart = performance.now(), qFrames = 0;
+function adaptQuality() {
+  qFrames++;
+  const now = performance.now(), span = now - qStart;
+  if (span < 2000) return;
+  const avg = span / qFrames;
+  qStart = now; qFrames = 0;
+  if (document.hidden || avg > 200) return;                 // tab in the background: timings mean nothing
+  if (avg > 22 && pixelCap > 1) {
+    pixelCap = Math.max(1, pixelCap - 0.25);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelCap));
+    fit();
+  }
 }
 updateHud();
 requestAnimationFrame(frame);
